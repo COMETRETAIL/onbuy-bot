@@ -24,23 +24,66 @@ app.get("/onbuy-refunds", async (req, res) => {
       timeout: 60000
     });
 
-    console.log("PAGE URL:", page.url());
+    console.log("LOGIN PAGE:", page.url());
 
-    await page.screenshot({
-      path: "/tmp/debug.png",
-      fullPage: true
+    // wait for login fields
+    await page.waitForSelector('input[type="email"], input[name="email"]', {
+      timeout: 60000
     });
 
-    // wait for ANY input field instead of guessing selector
-    await page.waitForSelector("input", { timeout: 60000 });
+    // enter email
+    await page.fill(
+      'input[type="email"], input[name="email"]',
+      process.env.ONBUY_EMAIL
+    );
 
-    const refunds = [];
+    // enter password
+    await page.fill(
+      'input[type="password"], input[name="password"]',
+      process.env.ONBUY_PASSWORD
+    );
+
+    // click login
+    await page.click(
+      'button[type="submit"], button:has-text("Log in"), button:has-text("Sign in")'
+    );
+
+    // wait for dashboard
+    await page.waitForLoadState("networkidle");
+
+    console.log("AFTER LOGIN URL:", page.url());
+
+    // go to returns page
+    await page.goto("https://seller.onbuy.com/gb/orders/returns", {
+      waitUntil: "domcontentloaded"
+    });
+
+    await page.waitForTimeout(4000);
+
+    const refunds = await page.evaluate(() => {
+      const rows = document.querySelectorAll("table tbody tr");
+
+      const data = [];
+
+      rows.forEach(row => {
+        const cells = row.querySelectorAll("td");
+
+        if (cells.length > 0) {
+          data.push({
+            order_id: cells[0]?.innerText?.trim(),
+            product: cells[1]?.innerText?.trim(),
+            reason: cells[2]?.innerText?.trim()
+          });
+        }
+      });
+
+      return data;
+    });
 
     await browser.close();
 
     res.json({
-      message: "Page reached successfully",
-      url: page.url(),
+      message: "Login successful",
       refunds
     });
 
