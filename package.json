@@ -1,1 +1,1 @@
-{\n  "name": "onbuy-bot",\n  "version": "1.0.0",\n  "description": "OnBuy refund scraper bot",\n  "main": "server.js",\n  "scripts": {\n    "start": "node server.js"\n  },\n  "dependencies": {\n    "express": "^4.18.2",\n    "playwright": "^1.42.0"\n  }\n}
+{"name": "onbuy-bot","version": "1.0.0","description": "OnBuy refund scraper bot","main": "server.js","scripts": {"start": "node server.js"},"dependencies": {"express": "^4.18.2","playwright": "^1.42.0"}}
