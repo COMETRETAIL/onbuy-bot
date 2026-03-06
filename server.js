@@ -52,6 +52,6 @@ res.json(refunds);
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`OnBuy bot running on port ${PORT}`);
 });
