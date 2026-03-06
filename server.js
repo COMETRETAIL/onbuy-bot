@@ -3,54 +3,104 @@ const { chromium } = require("playwright");
 
 const app = express();
 
+const PORT = process.env.PORT || 3000;
+
+/*
+Health check route
+*/
+app.get("/", (req, res) => {
+  res.send("OnBuy bot running");
+});
+
+/*
+Refund scraper route
+*/
 app.get("/onbuy-refunds", async (req, res) => {
+  let browser;
 
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage();
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    });
 
-await page.goto("https://seller.onbuy.com/login");
+    const page = await browser.newPage();
 
-await page.fill('input[name="email"]', process.env.ONBUY_EMAIL);
-await page.fill('input[name="password"]', process.env.ONBUY_PASSWORD);
+    // open seller login page
+    await page.goto("https://seller.onbuy.com/gb/", {
+      waitUntil: "domcontentloaded",
+      timeout: 60000
+    });
 
-await page.click('button[type="submit"]');
+    // wait for login fields
+    await page.waitForSelector('input[type="email"], input[name="email"], input#email', {
+      timeout: 60000
+    });
 
-await page.waitForLoadState("networkidle");
+    // enter credentials
+    await page.fill(
+      'input[type="email"], input[name="email"], input#email',
+      process.env.ONBUY_EMAIL
+    );
 
-await page.goto("https://seller.onbuy.com/orders/returns");
+    await page.fill(
+      'input[type="password"], input[name="password"], input#password',
+      process.env.ONBUY_PASSWORD
+    );
 
-await page.waitForTimeout(3000);
+    // click login
+    await page.click(
+      'button[type="submit"], button:has-text("Sign in"), button:has-text("Log in")'
+    );
 
-const refunds = await page.evaluate(() => {
+    // wait for dashboard to load
+    await page.waitForLoadState("networkidle");
 
-const rows = document.querySelectorAll("table tbody tr");
+    // go to returns page
+    await page.goto("https://seller.onbuy.com/gb/orders/returns", {
+      waitUntil: "domcontentloaded"
+    });
 
-let data = [];
+    // give table time to load
+    await page.waitForTimeout(5000);
 
-rows.forEach(row => {
+    // scrape refund rows
+    const refunds = await page.evaluate(() => {
+      const rows = document.querySelectorAll("table tbody tr");
 
-const orderId = row.querySelector(".order-id")?.innerText;
-const reason = row.querySelector(".reason")?.innerText;
+      const results = [];
 
-if(orderId){
-data.push({
-order_id: orderId,
-reason: reason
+      rows.forEach(row => {
+        const cells = row.querySelectorAll("td");
+
+        if (cells.length > 0) {
+          results.push({
+            order_id: cells[0]?.innerText?.trim(),
+            product: cells[1]?.innerText?.trim(),
+            reason: cells[2]?.innerText?.trim()
+          });
+        }
+      });
+
+      return results;
+    });
+
+    await browser.close();
+
+    res.json(refunds);
+  } catch (err) {
+    console.error("BOT ERROR:", err);
+
+    if (browser) {
+      await browser.close();
+    }
+
+    res.status(500).json({
+      error: "Bot failed",
+      message: err.message
+    });
+  }
 });
-}
-
-});
-
-return data;
-});
-
-await browser.close();
-
-res.json(refunds);
-
-});
-
-const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`OnBuy bot running on port ${PORT}`);
